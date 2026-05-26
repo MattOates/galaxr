@@ -1,4 +1,11 @@
 import * as THREE from 'three';
+import {
+  GALAXIAN_COLORS, GALAXIAN_POINTS,
+  ASTEROID_COLORS, ASTEROID_POINTS,
+  waveGalaxianCount, waveAsteroidCount, waveMediumAsteroidCount,
+  waveDiveCooldown, waveAdvanceSpeed,
+  bezier3,
+} from './gameLogic.js';
 
 // ─── Shared materials (lazily created once) ──────────────────────────────────
 const _mats = {};
@@ -10,11 +17,6 @@ function getEnemyMat(hex) {
   }
   return _mats[hex];
 }
-
-// Galaxian ship colors per rank (hardest = red, easiest = teal)
-const GALAXIAN_COLORS = [0x00ffcc, 0x44aaff, 0xaa44ff, 0xff8800, 0xff2200];
-// Points per rank
-const GALAXIAN_POINTS = [50, 100, 150, 200, 300];
 
 // ─── Galaxian enemy ──────────────────────────────────────────────────────────
 class GalaxianEnemy {
@@ -125,9 +127,9 @@ class GalaxianEnemy {
       const p0 = this.formationPos;
       const p1 = this._diveControl;
       const p2 = this._diveTarget;
-      this.mesh.position.x = (1 - t) * (1 - t) * p0.x + 2 * (1 - t) * t * p1.x + t * t * p2.x;
-      this.mesh.position.y = (1 - t) * (1 - t) * p0.y + 2 * (1 - t) * t * p1.y + t * t * p2.y;
-      this.mesh.position.z = (1 - t) * (1 - t) * p0.z + 2 * (1 - t) * t * p1.z + t * t * p2.z;
+      this.mesh.position.x = bezier3(p0.x, p1.x, p2.x, t);
+      this.mesh.position.y = bezier3(p0.y, p1.y, p2.y, t);
+      this.mesh.position.z = bezier3(p0.z, p1.z, p2.z, t);
       this.mesh.lookAt(playerPos);
     }
 
@@ -149,8 +151,6 @@ class GalaxianEnemy {
 }
 
 // ─── Asteroid enemy ──────────────────────────────────────────────────────────
-const ASTEROID_COLORS = [0x887766, 0x998877, 0x776655, 0x665544];
-
 class AsteroidEnemy {
   constructor(size, startPos) {
     this.size    = size;         // 'large' | 'medium' | 'small'
@@ -158,9 +158,9 @@ class AsteroidEnemy {
     this.contactDamage = size === 'large' ? 2 : size === 'medium' ? 1 : 1;
 
     const cfg = {
-      large:  { radius: 2.8, speed: 3 + Math.random() * 2,  points: 20,  health: 1, scale: 1.0 },
-      medium: { radius: 1.5, speed: 5 + Math.random() * 3,  points: 50,  health: 1, scale: 0.55 },
-      small:  { radius: 0.7, speed: 8 + Math.random() * 4,  points: 100, health: 1, scale: 0.26 },
+      large:  { radius: 2.8, speed: 3 + Math.random() * 2,  points: ASTEROID_POINTS.large,  health: 1, scale: 1.0 },
+      medium: { radius: 1.5, speed: 5 + Math.random() * 3,  points: ASTEROID_POINTS.medium, health: 1, scale: 0.55 },
+      small:  { radius: 0.7, speed: 8 + Math.random() * 4,  points: ASTEROID_POINTS.small,  health: 1, scale: 0.26 },
     }[size];
 
     this.radius = cfg.radius;
@@ -262,11 +262,11 @@ export class EnemyManager {
     this._formationOffset    = 0;
     this._formationOffsetDir = 1;
     this._diveTimer          = 2.0;
-    this._diveCooldown       = Math.max(1.2, 3.5 - wave * 0.25);
-    this._advanceSpeed       = 2.5 + wave * 0.4;
+    this._diveCooldown       = waveDiveCooldown(wave);
+    this._advanceSpeed       = waveAdvanceSpeed(wave);
 
-    const galaxianCount = Math.min(6 + wave * 3, 32);
-    const asteroidLarge = wave >= 2 ? Math.min(1 + Math.floor(wave / 2), 5) : 0;
+    const galaxianCount = waveGalaxianCount(wave);
+    const asteroidLarge = waveAsteroidCount(wave);
 
     // Spawn galaxians in a grid
     const cols = Math.ceil(galaxianCount / 4);
@@ -301,7 +301,7 @@ export class EnemyManager {
     }
 
     // Extra medium asteroids in later waves
-    const mediumCount = Math.max(0, wave - 3);
+    const mediumCount = waveMediumAsteroidCount(wave);
     for (let i = 0; i < mediumCount; i++) {
       const pos = new THREE.Vector3(
         (Math.random() - 0.5) * 40,

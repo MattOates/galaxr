@@ -1,12 +1,13 @@
 import * as THREE from 'three';
+import { FIRE_RATES, BULLET_DAMAGE, BULLET_COLORS } from './gameLogic.js';
 
 // ─── Weapon definitions ──────────────────────────────────────────────────────
 const WEAPON_DEFS = {
-  SINGLE:  { fireRate: 0.25, damage: 1, color: 0x00ff88, spread: 0, barrels: [[0, 0, 0]] },
-  DUAL:    { fireRate: 0.22, damage: 1, color: 0x00ffcc, spread: 0, barrels: [[-0.3, -0.1, 0], [0.3, -0.1, 0]] },
-  RAPID:   { fireRate: 0.10, damage: 1, color: 0xffff00, spread: 0, barrels: [[0, 0, 0]] },
-  SPREAD:  { fireRate: 0.28, damage: 1, color: 0xff8800, spread: 0.08, barrels: [[-0.15, 0, 0], [0, 0, 0], [0.15, 0, 0]] },
-  MISSILE: { fireRate: 0.60, damage: 3, color: 0xff00cc, spread: 0, barrels: [[0, -0.15, 0]] },
+  SINGLE:  { fireRate: FIRE_RATES.SINGLE,  damage: BULLET_DAMAGE.SINGLE,  color: BULLET_COLORS.SINGLE,  spread: 0,    barrels: [[0, 0, 0]] },
+  DUAL:    { fireRate: FIRE_RATES.DUAL,    damage: BULLET_DAMAGE.DUAL,    color: BULLET_COLORS.DUAL,    spread: 0,    barrels: [[-0.3, -0.1, 0], [0.3, -0.1, 0]] },
+  RAPID:   { fireRate: FIRE_RATES.RAPID,   damage: BULLET_DAMAGE.RAPID,   color: BULLET_COLORS.RAPID,   spread: 0,    barrels: [[0, 0, 0]] },
+  SPREAD:  { fireRate: FIRE_RATES.SPREAD,  damage: BULLET_DAMAGE.SPREAD,  color: BULLET_COLORS.SPREAD,  spread: 0.08, barrels: [[-0.15, 0, 0], [0, 0, 0], [0.15, 0, 0]] },
+  MISSILE: { fireRate: FIRE_RATES.MISSILE, damage: BULLET_DAMAGE.MISSILE, color: BULLET_COLORS.MISSILE, spread: 0,    barrels: [[0, -0.15, 0]] },
 };
 
 // ─── Bullet ──────────────────────────────────────────────────────────────────
