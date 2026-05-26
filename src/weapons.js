@@ -1,6 +1,38 @@
 import * as THREE from 'three';
 import { FIRE_RATES, BULLET_DAMAGE, BULLET_COLORS } from './gameLogic.js';
 
+// ─── Shared bullet resources ──────────────────────────────────────────────────
+// Geometry and materials are created ONCE at module level and reused for every
+// bullet.  Creating a new material per shot caused Three.js to recompile ALL
+// scene shaders on every frame where the bullet count changed (it bakes
+// NUM_POINT_LIGHTS into #defines).  Sharing them costs nothing and eliminates
+// the ~500 ms per-shot stutter.
+
+const _GEO_BOLT = (() => {
+  const g = new THREE.CylinderGeometry(0.03, 0.03, 0.9, 6);
+  g.rotateX(Math.PI / 2);
+  return g;
+})();
+
+const _GEO_MISSILE = (() => {
+  const g = new THREE.CylinderGeometry(0.08, 0.18, 0.7, 8);
+  g.rotateX(Math.PI / 2);
+  return g;
+})();
+
+// Keyed by `${color}_${0|1}` so missile/bolt can differ in emissive intensity
+const _BULLET_MATS = {};
+function _bulletMat(color, isMissile) {
+  const key = `${color}_${isMissile ? 1 : 0}`;
+  if (!_BULLET_MATS[key]) {
+    _BULLET_MATS[key] = new THREE.MeshStandardMaterial({
+      color, emissive: color,
+      emissiveIntensity: isMissile ? 4 : 3,
+    });
+  }
+  return _BULLET_MATS[key];
+}
+
 // ─── Weapon definitions ──────────────────────────────────────────────────────
 const WEAPON_DEFS = {
   SINGLE:  { fireRate: FIRE_RATES.SINGLE,  damage: BULLET_DAMAGE.SINGLE,  color: BULLET_COLORS.SINGLE,  spread: 0,    barrels: [[0, 0, 0]] },
@@ -21,25 +53,15 @@ class Bullet {
     this._maxAge   = 4.0;
     this._target   = null; // for homing missiles
 
-    const mat = new THREE.MeshStandardMaterial({
-      color: def.color, emissive: def.color,
-      emissiveIntensity: isMissile ? 4 : 3,
-    });
-
-    if (isMissile) {
-      const geo = new THREE.CylinderGeometry(0.08, 0.18, 0.7, 8);
-      geo.rotateX(Math.PI / 2);
-      this.mesh = new THREE.Mesh(geo, mat);
-    } else {
-      const geo = new THREE.CylinderGeometry(0.03, 0.03, 0.9, 6);
-      geo.rotateX(Math.PI / 2);
-      this.mesh = new THREE.Mesh(geo, mat);
-    }
+    // Reuse shared geometry + material — no per-bullet GPU uploads or shader recompiles
+    this.mesh = new THREE.Mesh(
+      isMissile ? _GEO_MISSILE : _GEO_BOLT,
+      _bulletMat(def.color, isMissile),
+    );
     this.mesh.position.copy(pos);
-
-    // Trail light
-    this.light = new THREE.PointLight(def.color, isMissile ? 3 : 1.5, isMissile ? 6 : 3);
-    this.mesh.add(this.light);
+    // NOTE: no PointLight here — adding/removing lights per-bullet changes the
+    // scene's NUM_POINT_LIGHTS define and triggers a full shader recompile every
+    // frame that count shifts.  The emissive material provides sufficient glow.
   }
 
   update(dt, enemies) {
@@ -90,6 +112,10 @@ export class WeaponSystem {
       color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 5, transparent: true, opacity: 0,
     });
     this._flashMesh = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 6), this._flashMat);
+    // One persistent PointLight on the flash mesh — always in the scene so the
+    // light count never changes and shaders are never recompiled mid-game.
+    this._flashLight = new THREE.PointLight(0xffffff, 0, 5);
+    this._flashMesh.add(this._flashLight);
     scene.add(this._flashMesh);
     this._flashTimer = 0;
   }
@@ -123,6 +149,8 @@ export class WeaponSystem {
     // Muzzle flash
     this._flashMesh.position.copy(camera.position).addScaledVector(forward, 0.8);
     this._flashMesh.material.opacity = 0.8;
+    this._flashLight.color.setHex(def.color);
+    this._flashLight.intensity = 6;
     this._flashTimer = 0.06;
 
     if (audio) audio.playShoot(this._mode);
@@ -150,7 +178,9 @@ export class WeaponSystem {
     // Muzzle flash fade
     if (this._flashTimer > 0) {
       this._flashTimer -= dt;
-      this._flashMesh.material.opacity = Math.max(0, this._flashTimer / 0.06 * 0.8);
+      const t = Math.max(0, this._flashTimer / 0.06);
+      this._flashMesh.material.opacity = t * 0.8;
+      this._flashLight.intensity = t * 6;
     }
   }
 

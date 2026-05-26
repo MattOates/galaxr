@@ -224,13 +224,16 @@ class AsteroidEnemy {
 }
 
 // ─── Enemy bullet ────────────────────────────────────────────────────────────
+// Material AND geometry are module-level singletons — shared across every enemy
+// bullet so no new GPU uploads happen when enemies fire.
+const ENEMY_BULLET_GEO = new THREE.SphereGeometry(0.15, 6, 6);
 const ENEMY_BULLET_MAT = new THREE.MeshStandardMaterial({
   color: 0xff3300, emissive: 0xff3300, emissiveIntensity: 3,
 });
 
 class EnemyBullet {
   constructor(startPos, targetPos) {
-    this.mesh     = new THREE.Mesh(new THREE.SphereGeometry(0.15, 6, 6), ENEMY_BULLET_MAT);
+    this.mesh = new THREE.Mesh(ENEMY_BULLET_GEO, ENEMY_BULLET_MAT);
     this.mesh.position.copy(startPos);
 
     this._vel = new THREE.Vector3().subVectors(targetPos, startPos).normalize().multiplyScalar(25);
